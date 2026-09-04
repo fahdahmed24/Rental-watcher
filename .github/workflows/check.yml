@@ -2,13 +2,12 @@ name: Check rental availability
 
 on:
   schedule:
-    # Every five minutes
+    # Check every five minutes
     - cron: "*/5 * * * *"
 
-    # Daily at 12:00 PM UTC
+    # Daily email at 12:00 PM UTC
     - cron: "0 12 * * *"
 
-  # Allows you to run it manually from GitHub
   workflow_dispatch:
 
 permissions:
@@ -45,7 +44,7 @@ jobs:
           ALERT_TO: ${{ secrets.ALERT_TO }}
         run: python check.py
 
-      - name: Send daily update
+      - name: Send daily email
         if: github.event.schedule == '0 12 * * *'
         env:
           CHECK_MODE: daily
@@ -55,14 +54,11 @@ jobs:
           ALERT_TO: ${{ secrets.ALERT_TO }}
         run: python check.py
 
-      - name: Save the latest status
+      - name: Save status
         if: always() && hashFiles('state.json') != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add state.json
-
           git diff --cached --quiet || git commit -m "Update rental watcher state"
-
           git push
