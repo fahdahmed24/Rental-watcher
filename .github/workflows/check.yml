@@ -24,7 +24,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: playwright install --with-deps chromium
 
-            - name: Debug secret
+      - name: Debug secret
         run: |
           if [ -z "$PRODUCT_URL" ]; then
             echo "PRODUCT_URL is EMPTY or MISSING"
