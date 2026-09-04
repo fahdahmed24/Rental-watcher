@@ -1,1 +1,4 @@
-{"last_status": "rented", "notify_count": 0}
+{
+  "last_status": "unknown",
+  "notify_count": 0
+}
