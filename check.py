@@ -67,37 +67,91 @@ def get_status():
                 print(f"Could not find '{GAME_TITLE}'.")
                 return "not_found"
 
-            # Get surrounding text from the game's listing/card.
-            listing = game.locator(
-                "xpath=ancestor::*[self::article or "
-                "self::li or contains(@class, 'card') or "
-                "contains(@class, 'product') or "
-                "contains(@class, 'game')][1]"
-            )
+            # Check multiple parent elements because the game status
+            # may be in a parent card or listing element.
+            parents = [
+                game.locator("xpath=.."),
+                game.locator("xpath=../.."),
+                game.locator("xpath=../../.."),
+                game.locator("xpath=../../../.."),
+                game.locator("xpath=../../../../.."),
+            ]
 
-            if listing.count() == 0:
-                listing = game.locator("xpath=..")
+            checked_text = set()
 
-            text = listing.inner_text().lower()
+            for parent in parents:
+                if parent.count() == 0:
+                    continue
 
-            print("Game listing text:")
-            print(text)
+                try:
+                    text = parent.inner_text().lower().strip()
+                except Exception:
+                    continue
 
-            # Check unavailable words first.
-            if any(word in text for word in [
-                "rented",
-                "unavailable",
-                "not available",
-                "out of stock"
-            ]):
-                return "rented"
+                if not text or text in checked_text:
+                    continue
 
-            if any(word in text for word in [
-                "available",
-                "in stock",
-                "rent now"
-            ]):
-                return "available"
+                checked_text.add(text)
+
+                print("Checking listing text:")
+                print(text)
+
+                # Check unavailable words first.
+                if any(word in text for word in [
+                    "rented",
+                    "currently rented",
+                    "unavailable",
+                    "not available",
+                    "out of stock"
+                ]):
+                    return "rented"
+
+                # These normally indicate that the game can be rented.
+                if any(word in text for word in [
+                    "available",
+                    "in stock",
+                    "rent now",
+                    "borrow",
+                    "add to cart"
+                ]):
+                    return "available"
+
+                # A button simply named "Rent" usually means available.
+                words = text.replace("\n", " ").split()
+
+                if "rent" in words:
+                    return "available"
+
+            # Final fallback: inspect text around the game title.
+            page_text = page.locator("body").inner_text().lower()
+            title_position = page_text.find(GAME_TITLE.lower())
+
+            if title_position >= 0:
+                nearby_text = page_text[
+                    max(0, title_position - 300):
+                    title_position + 700
+                ]
+
+                print("Nearby page text:")
+                print(nearby_text)
+
+                if any(word in nearby_text for word in [
+                    "rented",
+                    "currently rented",
+                    "unavailable",
+                    "not available",
+                    "out of stock"
+                ]):
+                    return "rented"
+
+                if any(word in nearby_text for word in [
+                    "available",
+                    "in stock",
+                    "rent now",
+                    "borrow",
+                    "add to cart"
+                ]):
+                    return "available"
 
             return "unknown"
 
@@ -114,10 +168,9 @@ def run_check():
     print(f"Current status: {current_status}")
 
     if current_status == "not_found":
-        print("The game was not found. State was not changed.")
+        print("Game was not found. State was not changed.")
         return
 
-    # Alert only when the game changes into available status.
     if (
         current_status == "available"
         and previous_status != "available"
@@ -126,19 +179,19 @@ def run_check():
             subject=f"{GAME_TITLE} is available",
             message_text=(
                 f"{GAME_TITLE} is now available to rent.\n\n"
-                f"Check it here:\n{PRODUCT_URL}"
+                f"Open the rental page:\n{PRODUCT_URL}"
             )
         )
         print("Availability email sent.")
 
     elif current_status == "available":
-        print("The game is still available. No new email sent.")
+        print("Game is still available. No new email sent.")
 
     elif current_status == "rented":
-        print("The game is rented. No email sent.")
+        print("Game is rented. No email sent.")
 
     else:
-        print("Availability could not be determined. No email sent.")
+        print("Availability could not be determined.")
 
     state["last_status"] = current_status
     save_state(state)
@@ -147,24 +200,15 @@ def run_check():
 def run_daily():
     status = get_status()
 
-    if status == "not_found":
-        status_message = (
-            f"Could not find '{GAME_TITLE}' on the page."
-        )
-    else:
-        status_message = (
-            f"Current status of {GAME_TITLE}: {status}"
-        )
-
     send_email(
         subject=f"Daily rental update: {GAME_TITLE}",
         message_text=(
-            f"{status_message}\n\n"
-            f"Check the page here:\n{PRODUCT_URL}"
+            f"Current status: {status}\n\n"
+            f"Open the rental page:\n{PRODUCT_URL}"
         )
     )
 
-    print("Daily status email sent.")
+    print("Daily email sent.")
 
 
 if __name__ == "__main__":
