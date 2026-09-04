@@ -24,6 +24,16 @@ jobs:
       - run: pip install -r requirements.txt
       - run: playwright install --with-deps chromium
 
+            - name: Debug secret
+        run: |
+          if [ -z "$PRODUCT_URL" ]; then
+            echo "PRODUCT_URL is EMPTY or MISSING"
+          else
+            echo "PRODUCT_URL exists, length: ${#PRODUCT_URL}"
+          fi
+        env:
+          PRODUCT_URL: ${{ secrets.PRODUCT_URL }}
+
       - name: Run availability check
         if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
         run: python check.py --mode check
