@@ -5,10 +5,10 @@ from playwright.sync_api import sync_playwright
 import smtplib
 from email.mime.text import MIMEText
 
-PRODUCT_URL = os.environ["https://samuraistore.site/rental-games"]
+PRODUCT_URL = os.environ["PRODUCT_URL"]
 GAME_TITLE = "007 First Light"
 GMAIL_ADDRESS = "faybs646@gmail.com"
-GMAIL_APP_PASSWORD = os.environ["ssdeitdvbsmwaxzu"]
+GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 TO_EMAIL = "faybs646@gmail.com"
 STATE_FILE = "state.json"
 MAX_NOTIFICATIONS = 6  # 6 x 5 min = 30 min of alerts
