@@ -2,57 +2,67 @@ name: Check rental availability
 
 on:
   schedule:
+    # Every five minutes
     - cron: "*/5 * * * *"
-    - cron: "0 22 * * *"
-  workflow_dispatch: {}
+
+    # Daily at 12:00 PM UTC
+    - cron: "0 12 * * *"
+
+  # Allows you to run it manually from GitHub
+  workflow_dispatch:
 
 permissions:
   contents: write
 
-concurrency:
-  group: rental-watcher
-  cancel-in-progress: false
-
 jobs:
-  run:
+  check-rental:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Check out repository
+        uses: actions/checkout@v4
         with:
-          python-version: "3.11"
-      - run: pip install -r requirements.txt
-      - run: playwright install --with-deps chromium
+          persist-credentials: true
 
-      - name: Debug secret
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
         run: |
-          if [ -z "$PRODUCT_URL" ]; then
-            echo "PRODUCT_URL is EMPTY or MISSING"
-          else
-            echo "PRODUCT_URL exists, length: ${#PRODUCT_URL}"
-          fi
-        env:
-          PRODUCT_URL: ${{ secrets.PRODUCT_URL }}
+          python -m pip install --upgrade pip
+          pip install playwright
+          playwright install --with-deps chromium
 
-      - name: Run availability check
-        if: github.event.schedule == '*/5 * * * *' || github.event_name == 'workflow_dispatch'
-        run: python check.py --mode check
+      - name: Check game availability
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '*/5 * * * *'
         env:
+          CHECK_MODE: check
           PRODUCT_URL: ${{ secrets.PRODUCT_URL }}
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+        run: python check.py
 
-      - name: Run daily update
-        if: github.event.schedule == '0 22 * * *'
-        run: python check.py --mode daily
+      - name: Send daily update
+        if: github.event.schedule == '0 12 * * *'
         env:
+          CHECK_MODE: daily
           PRODUCT_URL: ${{ secrets.PRODUCT_URL }}
+          GMAIL_USERNAME: ${{ secrets.GMAIL_USERNAME }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+        run: python check.py
 
-      - name: Save state
+      - name: Save the latest status
+        if: always() && hashFiles('state.json') != ''
         run: |
-          git config user.name "rental-watcher-bot"
-          git config user.email "actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add state.json
-          git diff --staged --quiet || git commit -m "Update state"
-          git pull --rebase
+
+          git diff --cached --quiet || git commit -m "Update rental watcher state"
+
           git push
